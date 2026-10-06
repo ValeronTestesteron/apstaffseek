@@ -9,7 +9,7 @@ import './index.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/apstaffseek">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/employees/:id" element={<EmployeeProfile />} />
