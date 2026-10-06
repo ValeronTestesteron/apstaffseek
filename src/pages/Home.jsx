@@ -20,10 +20,10 @@ function Home() {
     const fetchEmployees = async () => {
       try {
         if (id) {
-          const response = await axios.get(`/employees/${id}`);
+          const response = await axios.get(`./employees/${id}`);
           setEmployees(response.data.employees);
         } else {
-          const response = await axios.get('/employees.json');
+          const response = await axios.get('./employees.json');
           setEmployees(response.data.employees);
         }
       } catch (err) {
