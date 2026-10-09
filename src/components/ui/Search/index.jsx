@@ -1,13 +1,14 @@
-function Search({ value, onInputChange, setVisibleCount, placeholder }) {
+function Search({ value, onSearchChange, setVisibleCount, placeholder, onDebounceChange }) {
   return (
-    <div className="search relative flex items-center">
+    <div className="search relative flex items-center gap-4">
       <input
+        name="search"
         className="w-full p-3.5 pl-12 bg-slate-100 rounded-xl border border-gray-200 focus:outline-none"
         placeholder={placeholder}
         type="text"
         value={value}
         onChange={(e) => {
-          onInputChange(e.target.value);
+          onSearchChange(e.target.value);
           setVisibleCount(5);
         }}
       />
@@ -26,7 +27,8 @@ function Search({ value, onInputChange, setVisibleCount, placeholder }) {
       {value && (
         <svg
           onClick={() => {
-            onInputChange('');
+            onSearchChange('');
+            onDebounceChange('');
             setVisibleCount(5);
           }}
           className="w-5 h-5 absolute mr-4 right-0 text-stone-700 cursor-pointer"

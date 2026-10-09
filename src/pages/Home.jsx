@@ -1,59 +1,52 @@
-import axios from 'axios';
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { useFetching } from '../hooks/useFetching';
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
+
+import EmployeesService from '../API/EmployeesService';
 
 import Search from '../components/ui/Search';
 import EmployeeList from '../components/EmployeeList';
 import SelectedEmployeeCard from '../components/SelectedEmployeeCard';
+import Spinner from '../components/ui/Spinner';
 
 function Home() {
-  const [inputQuery, setInputQuery] = useState('');
-  const [debounceQuery, setDebounceQuery] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [selectEmployees, setSelectEmployees] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debounceQuery, setDebounceQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(5);
-  const { id } = useParams();
+
+  const [fetchEmployees, isEmployeesLoading, employeesError] = useFetching(async () => {
+    const allEmployees = await EmployeesService.getAll();
+    setEmployees(allEmployees);
+  });
 
   useEffect(() => {
-    const fetchEmployees = async () => {
-      try {
-        if (id) {
-          const response = await axios.get(`./employees/${id}`);
-          setEmployees(response.data.employees);
-        } else {
-          const response = await axios.get('./employees.json');
-          setEmployees(response.data.employees);
-        }
-      } catch (err) {
-        console.error('Ошибка загрузки:', err);
-      }
-    };
     fetchEmployees();
-  }, [id]);
+  }, []);
 
-  const searchEmployees = (query) => {
-    const modQuery = query.trim().toLowerCase();
+  useEffect(() => {
+    const tiemr = setTimeout(() => {
+      setDebounceQuery(searchQuery);
+    }, 400);
 
-    const result = employees.filter((employee) => {
+    return () => clearTimeout(tiemr);
+  }, [searchQuery]);
+
+  const searchedEmployees = useMemo(() => {
+    const query = debounceQuery.trim().toLowerCase();
+
+    if (!query) return employees;
+
+    return employees.filter((employee) => {
       const name = employee.name.toLowerCase();
       const position = employee.position.toLowerCase();
-      const skills = employee.skills.some((skill) => skill.toLowerCase().includes(modQuery));
+      const skills = employee.skills.some((skill) => skill.toLowerCase().includes(query));
 
-      return name.includes(modQuery) || position.includes(modQuery) || skills;
+      return name.includes(query) || position.includes(query) || skills;
     });
-    setDebounceQuery(displayedEmployees(result));
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebounceQuery(inputQuery);
-      searchEmployees(inputQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [inputQuery, employees, visibleCount]);
+  }, [debounceQuery, employees]);
 
   const displayedEmployees = (arr) => {
     return arr.slice(0, visibleCount);
@@ -63,11 +56,13 @@ function Home() {
     setVisibleCount(visibleCount + 5);
   };
 
-  const handleRemoveEmployee = (employeeId) => {
-    console.log(`Удален сотрудник ID: ${employeeId}`);
+  const removeEmployeById = (employeeId) => {
+    if (!employeeId) return;
+
     setSelectEmployees((selectEmployees) =>
       selectEmployees.filter((item) => item.id !== employeeId),
     );
+    console.log(`Удален сотрудник ID: ${employeeId}`);
   };
 
   const handleDragEnd = (result) => {
@@ -75,7 +70,7 @@ function Home() {
     if (!destination || destination.droppableId === 'employees-pool') return;
 
     if (source.droppableId === 'employees-pool' && destination.droppableId === 'selected-pool') {
-      const draggedEmployee = employees[source.index];
+      const draggedEmployee = searchedEmployees[source.index];
 
       if (selectEmployees.some((employee) => employee.id === draggedEmployee.id)) {
         console.log('Такой пользователь уже есть');
@@ -83,7 +78,7 @@ function Home() {
       }
 
       setSelectEmployees((selectEmployees) => [...selectEmployees, draggedEmployee]);
-      console.log(selectEmployees);
+      console.log(selectEmployees, draggedEmployee);
     }
   };
 
@@ -95,43 +90,56 @@ function Home() {
             <h1 className="text-2xl font-bold text-black">Сотрудники</h1>
             <div className="mt-2 mb-5">Найти человека по имени, роли или навыку</div>
             <Search
-              value={inputQuery}
+              value={searchQuery}
               setVisibleCount={setVisibleCount}
-              onInputChange={setInputQuery}
+              onSearchChange={setSearchQuery}
+              onDebounceChange={setDebounceQuery}
               placeholder="Поиск..."
             />
-            <Droppable
-              droppableId="employees-pool"
-              isDropDisabled={true}
-              renderClone={(provided, snapshot, rubric) => {
-                const item = debounceQuery[rubric.source.index];
-                return (
+            {employeesError && (
+              <div className="mt-5 text-xl font-bold">Возникла ошибка: {employeesError}</div>
+            )}
+            {isEmployeesLoading ? (
+              <Spinner className="mt-5 mx-auto size-8 animate-spin text-black" />
+            ) : (
+              <Droppable
+                droppableId="employees-pool"
+                isDropDisabled={true}
+                renderClone={(provided, snapshot, rubric) => {
+                  const item = searchedEmployees[rubric.source.index];
+                  return (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
+                      className="w-full max-w-[309px]">
+                      <SelectedEmployeeCard key={item.id} employee={item} />
+                    </div>
+                  );
+                }}>
+                {(provided) => (
                   <div
+                    className="mt-5 h-full max-h-[460px] overflow-y-auto"
                     ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    style={{ ...provided.draggableProps.style, boxSizing: 'border-box' }}
-                    className="w-full max-w-[309px]">
-                    <SelectedEmployeeCard key={item.id} employee={item} />
+                    {...provided.droppableProps}>
+                    <EmployeeList
+                      employees={displayedEmployees(searchedEmployees)}
+                      visibleCount={visibleCount}
+                      searchCount={searchedEmployees.length}
+                      onLoadMore={loadMore}
+                    />
                   </div>
-                );
-              }}>
-              {(provided) => (
-                <div
-                  className="mt-5 h-full max-h-[460px] overflow-y-auto"
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}>
-                  <EmployeeList employees={debounceQuery} onLoadMore={loadMore} />
-                </div>
-              )}
-            </Droppable>
+                )}
+              </Droppable>
+            )}
           </div>
+
           <div className="col-span-1 flex flex-col p-8 rounded-2xl shadow-[0_0_1px_#091e4240] bg-white">
             <div className="mb-5 text-2xl font-bold text-black">Выбранные пользователи:</div>
             <Droppable droppableId="selected-pool">
               {(provided) => (
                 <div
-                  className="flex flex-col flex-1 gap-4 max-h-[480px] overflow-x-hidden overflow-y-auto"
+                  className="flex flex-col gap-4 flex-1 max-h-[480px] min-h-[230px] overflow-x-hidden overflow-y-auto"
                   ref={provided.innerRef}
                   {...provided.droppableProps}>
                   {selectEmployees.map((item, index) => (
@@ -144,12 +152,11 @@ function Home() {
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          style={{ ...provided.draggableProps.style, boxSizing: 'border-box' }}>
+                          {...provided.dragHandleProps}>
                           <SelectedEmployeeCard
                             key={item.id}
                             employee={item}
-                            onRemove={handleRemoveEmployee}
+                            remove={removeEmployeById}
                           />
                         </div>
                       )}

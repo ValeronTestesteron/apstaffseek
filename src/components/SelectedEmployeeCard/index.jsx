@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
 
-function SelectedEmployeeCard({ employee, onRemove }) {
+function SelectedEmployeeCard({ employee, remove }) {
   return (
     <div className="card relative flex items-center flex-col bg-white text-center rounded-xl border border-gray-200 px-3 py-4">
-      {onRemove && (
+      {remove && (
         <svg
-          onClick={() => onRemove(employee.id)}
+          onClick={() => remove(employee.id)}
           className="w-4 h-4 absolute mr-4 right-0 text-stone-700 cursor-pointer"
           viewBox="0 0 20 20"
           xmlns="http://www.w3.org/2000/svg">
